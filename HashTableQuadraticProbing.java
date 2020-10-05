@@ -4,7 +4,7 @@
 //P(x, k) -> probing function
 import java.util.*;
 
-import sun.security.krb5.internal.ktab.KeyTabEntry;
+
 
 
 public class HashTableQuadraticProbing <K, V> implements Iterable <K>{
@@ -170,8 +170,104 @@ public class HashTableQuadraticProbing <K, V> implements Iterable <K>{
     }
 
     public V remove(K key){
-        
+        if(key == null) throw new IllegalArgumentException("Null Key");
+
+        final int hash = normalizeIndex(key.hashCode());
+        int i = hash, x = 1;
+
+        for(;;i = normalizeIndex(hash + P(x++))){
+
+            if(keyTable[i] == TOMBSTONE) continue;
+
+            if(keyTable[i] == null) return null;
+
+            if(keyTable[i].equals(key)){
+                keyCount--;
+                modificationCount++;
+                V oldValue = valueTable[i];
+                keyTable[i] = TOMBSTONE;
+                valueTable[i] = null;
+                return oldValue;
+            }
+        }
     }
 
+    public List <K> keys(){
+        List <K> keys = new ArrayList<>(size());
+
+        for(int i = 0; i < capacity; i++){
+            if(keyTable[i] != null && keyTable[i] != TOMBSTONE)
+                keys.add(keyTable[i]);
+
+            
+        }
+
+        return keys;
+    }
+
+    public List <V> values(){
+        List <V> values = new ArrayList<>(size());
+
+        for(int i = 0; i < capacity; i++){
+            if(keyTable[i] != null && keyTable[i] != TOMBSTONE)
+                values.add(valueTable[i]);
+
+            
+        }
+
+        return values;
+    }
+
+    private void resizeTable(){
+
+        capacity = 2;
+        threshold = (int) (capacity * loadFactor);
+
+        K[] oldKeyTable = (K[]) new Object[capacity];
+        V[] oldValueTable = (V[]) new Object[capacity];
+
+        K[] keyTableTmp = keyTable;
+        keyTable = oldKeyTable;
+        oldKeyTable = keyTableTmp;
+
+        V[] valueTableTmp = valueTable;
+        valueTable = oldValueTable;
+        oldValueTable = valueTableTmp;
+
+        keyCount = usedBuckets = 0;
+
+        for(int i = 0; i < oldKeyTable.length; i++){
+            if(oldKeyTable[i] != null && oldKeyTable[i] != TOMBSTONE)
+                insert(oldKeyTable[i], oldValueTable[i]);
+            oldValueTable[i] = null;
+            oldKeyTable[i] = null;
+
+        }
+
+
+    }
+
+    @Override public java.util.Iterator <K> iterator(){
+        final int MODIFICATION_COUNT = modificationCount;
+
+        return new java.util.Iterator <K> (){
+            int keysLeft = keyCount, index = 0;
+            @Override public boolean hasNext(){
+                if(MODIFICATION_COUNT != modificationCount) throw new java.util.ConcurrentModificationException();
+                return keysLeft != 0;
+
+            }
+
+            @Override public K next(){
+                while(keyTable[index] == null || keyTable[index] == TOMBSTONE) index++;
+                keysLeft--;
+                return keyTable[index++];
+            }
+
+            @Override public void remove(){
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
 
 }
